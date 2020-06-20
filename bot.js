@@ -316,6 +316,303 @@ client.on('message', msg => {
   }
 });
 
+client.on('message', message => {
+ 
+    if (message.content === "^cchat") {
+                        if(!message.channel.guild) return message.reply(' هذا الامر فقط للسيرفرات !!');
+ 
+if(!message.member.hasPermission('MANAGE_MESSAGES')) return message.reply(' ليس لديك صلاحيات');
+           message.channel.overwritePermissions(message.guild.id, {
+         SEND_MESSAGES: false
+ 
+           }).then(() => {
+               message.reply("تم تقفيل الشات ✅ ")
+           });
+             }
+if (message.content === "^uchat") {
+    if(!message.channel.guild) return message.reply(' هذا الامر فقط للسيرفرات !!');
+ 
+if(!message.member.hasPermission('MANAGE_MESSAGES')) return message.reply('ليس لديك صلاحيات');
+           message.channel.overwritePermissions(message.guild.id, {
+         SEND_MESSAGES: true
+ 
+           }).then(() => {
+               message.reply("تم فتح الشات ✅")
+           });
+             }
+ 
+ 
+ 
+});
 
+client.on('message', msg => {
+    if (msg.content.startsWith(`^warn`)) {
+       let args = msg.content.split(" ").slice(1);
+      if (!msg.mentions.members.first()) return msg.reply('منشن الشخص المحدد')
+      if (!args[1]) return msg.reply('``اكتب السبب``')
+      //غير اسم الروم او سوي روم بذا الاسم
+      if (msg.guild.channels.find('name', 'warn')) {
+        //اذا غيرت فوق غير هنا كمان
+        msg.guild.channels.find('name', 'warns').send(`
+      تم اعطائك تنبيه : ${msg.mentions.members.first()}
+      لأنك قمت بما يلي
+      ${args.join(" ").split(msg.mentions.members.first()).slice(' ')}
+      `)
+      }
+    }
+})
+
+client.on('message', msg => {
+  if (msg.content === 'السعودية') {      
+    msg.react("SA")
+    msg.channel.send("SA")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'مصر') {      
+    msg.react("🇪🇬")
+    msg.channel.send("🇪🇬")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'المغرب') {      
+    msg.react("🇲🇦")
+    msg.channel.send("🇲🇦")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'العراق') {      
+    msg.react("🇮🇶")
+    msg.channel.send("🇮🇶")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'الجزائر') {      
+    msg.react("🇩🇿")
+    msg.channel.send("🇩🇿")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'الامارات') {      
+    msg.react("🇦🇪")
+    msg.channel.send("🇦🇪")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'تونس') {      
+    msg.react("🇹🇳")
+    msg.channel.send("🇹🇳")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'سوريا') {      
+    msg.react("🇸🇾")
+    msg.channel.send("🇸🇾")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'ليبيا') {      
+    msg.react("🇱🇾")
+    msg.channel.send("🇱🇾")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'قطر') {      
+    msg.react("🇶🇦")
+    msg.channel.send("🇶🇦")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'الصومال') {      
+    msg.react("🇸🇴")
+    msg.channel.send("🇸🇴")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'عمان') {      
+    msg.react("🇴🇲")
+    msg.channel.send("🇴🇲")
+  }
+});
+
+client.on('message', msg => {
+  if (msg.content === 'موريتانيا') {      
+    msg.react("🇲🇷")
+    msg.channel.send("🇲🇷")
+  }
+});
+
+client.on("message", (message) => {
+    /// ALPHA CODES
+   if (message.content.startsWith("^ticket")) {     /// ALPHA CODES
+        const reason = message.content.split(" ").slice(1).join(" ");     /// ALPHA CODES
+        if (!message.guild.roles.exists("name", "Support Team")) return message.channel.send(`This server doesn't have a \`Support Team\` role made, so the ticket won't be opened.\nIf you are an administrator, make one with that name exactly and give it to users that should be able to see tickets.`);
+        if (message.guild.channels.exists("name", "ticket-{message.author.id}" + message.author.id)) return message.channel.send(`You already have a ticket open.`);    /// ALPHA CODES
+        message.guild.createChannel(`ticket-${message.author.username}`, "text").then(c => {
+            let role = message.guild.roles.find("name", "Support Team");
+            let role2 = message.guild.roles.find("name", "@everyone");
+            c.overwritePermissions(role, {
+                SEND_MESSAGES: true,
+                READ_MESSAGES: true
+            });    /// ALPHA CODES
+            c.overwritePermissions(role2, {
+                SEND_MESSAGES: false,
+                READ_MESSAGES: false
+            });
+            c.overwritePermissions(message.author, {
+                SEND_MESSAGES: true,
+                READ_MESSAGES: true
+            });
+            message.channel.send(`:white_check_mark: **تم إنشاء تذكرتك ، #${c.name}.**`);
+            const embed = new Discord.RichEmbed()
+                .setColor(0xCF40FA)
+                .addField(`مرحباّ ${message.author.username}!`, `يرجى محاولة شرح سبب فتح هذه التذكرة بأكبر قدر ممكن من التفاصيل. سيكون فريق الدعم لدينا قريبا للمساعدة.`)
+                .setTimestamp();
+            c.send({
+                embed: embed
+            });
+        }).catch(console.error);
+    }
+ 
+ 
+  if (message.content.startsWith("^close")) {
+        if (!message.channel.name.startsWith(`ticket-`)) return message.channel.send(`You can't use the close command outside of a ticket channel.`);
+ 
+        message.channel.send(`هل أنت متأكد؟ بعد التأكيد ، لا يمكنك عكس هذا الإجراء!\n للتأكيد ، اكتب\`^confirm\`. سيؤدي ذلك إلى مهلة زمنية في غضون 10 ثوانٍ وإلغائها`)
+            .then((m) => {
+                message.channel.awaitMessages(response => response.content === '*confirm', {
+                        max: 1,
+                        time: 10000,
+                        errors: ['time'],
+                    })    /// ALPHA CODES
+                    .then((collected) => {
+                        message.channel.delete();
+                    })    /// ALPHA CODES
+                    .catch(() => {
+                        m.edit('Ticket close timed out, the ticket was not closed.').then(m2 => {
+                            m2.delete();
+                        }, 3000);
+                    });
+            });
+    }
+ 
+});
+
+client.on('message', function(msg) {
+    const prefix = '^'
+    if(msg.content.startsWith (prefix  + 'server')) {
+      let embed = new Discord.RichEmbed()
+      .setColor('RANDOM')
+      .setThumbnail(msg.guild.iconURL)
+      .setTitle(`Showing Details Of  **${msg.guild.name}*`)
+      .addField('🌐** نوع السيرفر**',`[** __${msg.guild.region}__ **]`,true)
+      .addField('🏅** __الرتب__**',`[** __${msg.guild.roles.size}__ **]`,true)
+      .addField('🔴**__ عدد الاعضاء__**',`[** __${msg.guild.memberCount}__ **]`,true)
+      .addField('🔵**__ عدد الاعضاء الاونلاين__**',`[** __${msg.guild.members.filter(m=>m.presence.status == 'online').size}__ **]`,true)
+      .addField('📝**__ الرومات الكتابية__**',`[** __${msg.guild.channels.filter(m => m.type === 'text').size}__** ]`,true)
+      .addField('🎤**__ رومات الصوت__**',`[** __${msg.guild.channels.filter(m => m.type === 'voice').size}__ **]`,true)
+      .addField('👑**__ الأونـر__**',`**${msg.guild.owner}**`,true)
+      .addField('🆔**__ ايدي السيرفر__**',`**${msg.guild.id}**`,true)
+      .addField('📅**__ تم عمل السيرفر في__**',msg.guild.createdAt.toLocaleString())
+      msg.channel.send({embed:embed});
+    }
+  });
+
+client.on('message', message => {
+         if (message.content === prefix + "time") {
+         if (!message.channel.guild) return message.reply('** This command only for servers **');  
+         var currentTime = new Date(),
+            hours = currentTime.getHours() + 4 ,
+            hours2 = currentTime.getHours() + 3 ,
+            hours3 = currentTime.getHours() + 2 ,
+            hours4 = currentTime.getHours() + 3 ,
+            minutes = currentTime.getMinutes(),
+            seconds = currentTime.getSeconds(),
+            Year = currentTime.getFullYear(),
+            Month = currentTime.getMonth() + 1,
+            Day = currentTime.getDate();
+             var h = hours
+  if(hours > 12) {
+               hours -= 12;
+            } else if(hours == 0) {
+                hours = "12";
+            }  
+             if(hours2 > 12) {
+               hours2 -= 12;
+            } else if(hours2 == 0) {
+                hours2 = "12";
+            
+            }  
+                         if(hours3 > 12) {
+               hours3 -= 12;
+            } else if(hours3 == 0) {
+                hours3 = "12";
+            } 
+            if (minutes < 10) {
+                minutes = '0' + minutes;
+            }
+
+            var suffix = 'صباحاَ';
+            if (hours >= 12) {
+                suffix = 'مساء';
+                hours = hours - 12;
+            }
+            if (hours == 0) {
+                hours = 12;
+            }
+ 
+
+                var Date15= new Discord.RichEmbed()
+                .setThumbnail("https://i.imgur.com/ib3n4Hq.png") 
+                .setTitle( "『التاريخ  والوقت』")
+                .setColor('RANDOM')
+                .setFooter(message.author.username, message.author.avatarURL)
+                .addField('الامارات',
+                "『"+ hours + ":" + minutes +":"+ seconds + "』")
+                 .addField('مكه المكرمه',
+                "『"+ hours2 + ":" + minutes +":"+ seconds  + "』") 
+                .addField('مصر',
+                "『"+ hours3 + ":" + minutes +":"+ seconds  + "』") 
+                
+                .addField('Date',
+                "『"+ Day + "-" + Month + "-" + Year +  "』")
+
+                 message.channel.sendEmbed(Date15);
+        }
+    });
+
+
+
+
+client.on("message", (message) => {
+if (message.content.startsWith("^ct")) {
+            if (!message.member.hasPermission('MANAGE_CHANNELS')) return message.reply("You Don't Have `MANAGE_CHANNELS` Premissions ");
+        let args = message.content.split(" ").slice(1);
+    message.guild.createChannel(args.join(' '), 'text');
+message.channel.sendMessage('تـم إنـشاء روم كـتابـي')
+
+}
+});
+
+client.on("message", (message) => {
+if (message.content.startsWith("^cv")) {
+            if (!message.member.hasPermission('MANAGE_CHANNELS')) return message.reply("You Don't Have `MANAGE_CHANNELS` Premissions ");
+        let args = message.content.split(" ").slice(1);
+    message.guild.createChannel(args.join(' '), 'voice');
+    message.channel.sendMessage('تـم إنـشاء روم صـوتي')
+    
+}
+});
 
 client.login(process.env.BOT_TOKEN);
