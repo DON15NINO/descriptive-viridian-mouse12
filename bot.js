@@ -248,5 +248,43 @@ client.on('message', msg => {
   }
 });
 
+client.on('message',message=>{
+    if(message.content === '^user'){
+    
+    if (message.author.bot) return;
+    if (!message.guild)
+      return message.reply("**This Command only for Servers**");
+    message.guild.fetchInvites().then(invites => {
+      
+      let personalInvites = invites.filter(
+        i => i.inviter.id === message.author.id
+      );
+      let inviteCount = personalInvites.reduce((p, v) => v.uses + p, 0);
+      var roles = message.member.roles
+        .map(roles => `**__${roles.name}__ |**`)
+        .join(` `);
+      let pixeluser = new Discord.RichEmbed() 
+        .setColor("#00FFFF")
+        .setTitle("User Information") 
+        .addField("**Name **   ", message.author.username, true) 
+        .addField("**                    ID ** ", message.author.id, true)
+      .addField(
+          "**            Joined**   ",
+          moment(message.joinedAt).format("D/M/YYYY h:mm a "),
+          true
+        )
+        .addField(
+          "**Created**    ",
+          moment(message.author.createdAt).format("D/M/YYYY h:mm a "),
+          true
+        )
+        .setFooter(message.author.username, message.author.avatarURL)
+        .setTimestamp(); 
+
+      message.channel.sendEmbed(pixeluser).then(c => {}); 
+    });
+  }
+}); 
+
 
 client.login(process.env.BOT_TOKEN);
