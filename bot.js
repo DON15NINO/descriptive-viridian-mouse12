@@ -37,7 +37,24 @@ client.on('ready', () => {
   console.log('')
 });
 
+client.on('message', message => {
+  if (message.content === '$help') {
+    message.channel.send('');
+    let embed = new Discord.RichEmbed()
+     .setTitle("All Thing About Bot")
+     .setColor("#23272a")
+     .setThumbnail('https://cdn.discordapp.com/attachments/721849147568947281/721943045431492668/ogimage-324e43fd3b74f4ece4582018a067eb27.jpg')
+     .addField('prefix:', '{ $ }')
+     .addField('General Commands:', '$binfo ||||| prefix ||||| $botinfo ||||| $support ||||| $say [your message] ||||| $embed [your message] ||||| $invites ||||| link ||||| invite ||||| $server ||||| $avatar ||||| $avatar @user id ||||| $avatar server ||||| $avatar @user ||||| $user')
+     .addField('Admin Commands:', '$lock ||||| $unlock ||||| $banlist ||||| $antispread on ||||| $antispread off ||||| $hide ||||| $show ||||| $clear ||||| $ban ||||| $kick ||||| $mute ||||| $unmute ||||| $move ||||| $role rolename ||||| $all rolename ||||| $members rolename ||||| $bots rolename')
+     .addField('Music Commands:', '$play ||||| $skip ||||| $np ||||| $queue ||||| $pause ||||| $resume ||||| $stop ||||| $vol ||||| $search ')
+     .addField('Fun Commands:', '$rps ||||| $what [number + number]')
+     .addField('More Commands Soon', 'Soon....')
+     .setTimestamp();
+    message.channel.send(embed);
 
+  }
+});
 
 client.on('message', message => {
   if (message.author.bot) return;
