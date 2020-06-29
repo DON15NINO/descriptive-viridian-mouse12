@@ -6,7 +6,7 @@ const { Client, Util } = require('discord.js');
 const getYoutubeID = require('get-youtube-id');
 const fetchVideoInfo = require('youtube-info');
 const YouTube = require('simple-youtube-api');
-const youtube = new YouTube("AIzaSyCx7drgLYZ-GSMUToLXBo4oWBAC6cUP7AA");
+const youtube = new YouTube("AIzaSyDP2cF6UbLnHQmYk0AzLTRpl1rWqmxbLbo");
 const queue = new Map();
 const UserBlocked = new Set();
 const prefix = '^'
@@ -39,43 +39,666 @@ client.on('ready', () => {
 
 
 
-client.on('message', message => {
-  if (message.author.bot) return;
-  if (!message.content.startsWith(prefix)) return;
+let cmds = {
+  play: { cmd: 'play', a: ['p','شغل','تشغيل'] },
+  skip: { cmd: 'skip', a: ['s','تخطي','next']},
+  stop: { cmd: 'stop', a:['ايقاف','توقف'] },
+  pause: { cmd: 'pause', a:['لحظة','مؤقت'] },
+  resume: { cmd: 'resume', a: ['r','اكمل','استكمال'] },
+  volume: { cmd: 'volume', a: ['vol','صوت'] },
+  queue: { cmd: 'queue', a: ['q','list','قائمة'] },
+  repeat: { cmd: 'repeat', a: ['re','تكرار','اعادة'] },
+  forceskip: { cmd: 'forceskip', a: ['fs', 'fskip'] },
+  skipto: { cmd: 'skipto', a: ['st','تخطي الي'] },
+  nowplaying: { cmd: 'Nowplaying', a: ['np','الان'] }
+};
 
 
-  let command = message.content.split(" ")[0];
-  //command = command.slice(prefix.length);
 
-  let args = message.content.split(" ").slice(1);
+Object.keys(cmds).forEach(key => {
+var value = cmds[key];
+  var command = value.cmd;
+  client.commands.set(command, command);
 
-
-if (message.content.startsWith(prefix + "say")) {
- if (message.author.id !== '516576049778130954') return message.reply('** فقط لصاحب البوت :no_entry:  **')
-          message.delete()
-    message.channel.sendMessage(args.join(" ")).catch(console.error);
+  if(value.a) { // 14
+    value.a.forEach(alias => {
+    client.aliases.set(alias, command)
+  })
   }
+})
 
+const ytdl = require('ytdl-core');
+const getYoutubeID = require('get-youtube-id');
+const fetchVideoInfo = require('youtube-info');
+const YouTube = require('simple-youtube-api');
+const youtube = new YouTube(process.env.YTkey);
+ // 14
+
+let active = new Map();
+
+client.on('warn', console.warn);
+
+client.on('error', console.error);
+
+client.on('ready', () => {
+    console.log(`Created By: Kahrbaa`);
+    console.log(`Guilds: ${client.guilds.size}`);
+    console.log(`Users: ${client.users.size}`);
+    client.user.setActivity(`${process.env.status.replace('[PREFIX]' ,PREFIX).replace('[SERVERS]',client.guilds.size).replace('[USERS]',client.users.size) || `Type ${prefix}help`}`,{type: 'Playing'});
+});
+
+client.on('message', async msg => {
+    if(msg.author.bot) return undefined;
+  if(!msg.content.startsWith(prefix)) return undefined;
+
+  const args = msg.content.slice(prefix.length).trim().split(/ +/g);
+const command = args.shift().toLowerCase();
+
+    const url = args[1] ? args[1].replace(/<(.+)>/g, '$1') : '';
+
+    let cmd = client.commands.get(command) || client.commands.get(client.aliases.get(command))
+
+    let s;
+
+    if(cmd === 'play') {
+        const voiceChannel = msg.member.voiceChannel;
+        if(!voiceChannel) return msg.channel.send(`**You Must Be Listening In a Voice Channel To Use That** <a:4a26aa20e8a54406b3b8a72b3d10132d:723652220255469660> `);
+        const permissions = voiceChannel.permissionsFor(msg.client.user);
+        if(!permissions.has('CONNECT')) {
+            return msg.channel.send(`<a:4a26aa20e8a54406b3b8a72b3d10132d:723652220255469660> I can't join Your voiceChannel because i don't have ` + '`' + '`CONNECT`' + '`' + ` permission!`);
+        }
+
+        if(!permissions.has('SPEAK')) {
+            return msg.channel.send(`<a:4a26aa20e8a54406b3b8a72b3d10132d:723652220255469660> I can't SPEAK in your voiceChannel because i don't have ` + '`' + '`SPEAK`' + '`' + ` permission!`);
+        }
+      voiceChannel.join()
+      if(!args[0]) return msg.channel.send(`**> TrueBot <a:606912254620729384:725056177796415548>
+>    -play \`\`<song name>\`\`
+>    -vol \`\`<volume>\`\`
+>    -skip**`)
+
+        if (url.match(/^https?:\/\/(www.youtube.com|youtube.com)\/playlist(.*)$/)) {
+			const playlist = await youtube.getPlaylist(url);
+			const videos = await playlist.getVideos();
+
+			for (const video of Object.values(videos)) {
+				const video2 = await youtube.getVideoByID(video.id); // eslint-disable-line no-await-in-loop
+				await handleVideo(video2, msg, voiceChannel, true); // eslint-disable-line no-await-in-loop
+			}
+			return msg.channel.send(`Added to queue: ${playlist.title}`);
+		} else {
+			try {
+// كههربا
+				var video = await youtube.getVideo(url);
+			} catch (error) {
+				try {
+					var videos = await youtube.searchVideos(args, 1);
+
+					// eslint-disable-next-line max-depth
+					var video = await youtube.getVideoByID(videos[0].id);
+				} catch (err) {
+					console.error(err);
+					return msg.channel.send('I can\'t find any thing');
+				}
+			}
+
+			return handleVideo(video, msg, voiceChannel);
+		}
+
+        async function handleVideo(video, msg, voiceChannel, playlist = false) {
+	const serverQueue = active.get(msg.guild.id);
+
+
+//	console.log('yao: ' + Util.escapeMarkdown(video.thumbnailUrl));
+// Kahrbaa كههربا
+let hrs = video.duration.hours > 0 ? (video.duration.hours > 9 ? `${video.duration.hours}:` : `0${video.duration.hours}:`) : '';
+let min = video.duration.minutes > 9 ? `${video.duration.minutes}:` : `0${video.duration.minutes}:`;
+let sec = video.duration.seconds > 9 ? `${video.duration.seconds}` : `0${video.duration.seconds}`;
+let dur = `${hrs}${min}${sec}`
+
+  let ms = video.durationSeconds * 1000;
+
+	const song = {  // 04
+		id: video.id,
+		title: video.title,
+    duration: dur,
+    msDur: ms,
+		url: `https://www.youtube.com/watch?v=${video.id}`
+	};
+	if (!serverQueue) {
+		const queueConstruct = {
+			textChannel: msg.channel,
+			voiceChannel: voiceChannel,
+			connection: null,
+			songs: [],
+			volume: 70,
+      requester: msg.author,
+			playing: true,
+      repeating: false
+		};
+		active.set(msg.guild.id, queueConstruct);
+
+		queueConstruct.songs.push(song);
+
+		try {
+			var connection = await voiceChannel.join();
+			queueConstruct.connection = connection;
+			play(msg.guild, queueConstruct.songs[0]);
+		} catch (error) {
+			console.error(`I could not join the voice channel: ${error}`);
+			active.delete(msg.guild.id);
+			return msg.channel.send(`I cant join this voice channel`);
+		} // 04
+	} else {
+		serverQueue.songs.push(song);
+
+		if (playlist) return undefined;
+		if(!args) return msg.channel.send('no results.');
+		else return msg.channel.send(':watch: Loading... [`' + args + '`]').then(m => {
+      setTimeout(() => {//:watch: Loading... [let]
+        m.edit(`> <:c7177e9bb1d94d6cb741ac53556df341:725893343292162139> **Added** **${song.title}**` + '(` ' + song.duration + ')`' + ` **To The Queue At Position** ` + `${serverQueue.songs.length} <a:5d139fb97f6048f4b513e43fd21570ce:725893577548234834>`);
+      }, 500)
+    }) 
+	}
+	return undefined;
+}
+
+function play(guild, song) {
+	const serverQueue = active.get(guild.id);
+
+	if (!song) {
+		serverQueue.voiceChannel.leave();
+		active.delete(guild.id);
+		return;
+	}
+	//console.log(serverQueue.songs);
+  if(serverQueue.repeating) {
+	console.log('Repeating');
+  } else {
+	serverQueue.textChannel.send('> <:c7177e9bb1d94d6cb741ac53556df341:725893343292162139> **Added** ``' + song.title + '`` (`' + song.duration + '`) **To Begin Playing.** <a:5d139fb97f6048f4b513e43fd21570ce:725893577548234834>');
+}
+	const dispatcher = serverQueue.connection.playStream(ytdl(song.url))
+		.on('end', reason => {
+			//if (reason === 'Stream is not generating quickly enough.') console.log('Song ended.');
+			//else console.log(reason);
+      if(serverQueue.repeating) return play(guild, serverQueue.songs[0])
+			serverQueue.songs.shift();
+			play(guild, serverQueue.songs[0]);
+		})
+		.on('error', error => console.error(error));
+	dispatcher.setVolumeLogarithmic(serverQueue.volume / 100);
+
+
+}
+} else if(cmd === 'stop') {
+        if(msg.guild.me.voiceChannel !== msg.member.voiceChannel) return msg.channel.send(`You must be in ${msg.guild.me.voiceChannel.name}`)
+        if(!msg.member.hasPermission('ADMINISTRATOR')) {
+          msg.react('❌')
+          return msg.channel.send('You don\'t have permission `ADMINSTRATOR`');
+        }
+        let queue = active.get(msg.guild.id);
+        if(queue.repeating) return msg.channel.send(':arrows_counterclockwise: **Repeating Mode is on, you can\'t stop the music, run** `' + `${prefix}repeat` + '` to turn off it.')
+        queue.songs = [];
+        queue.connection.dispatcher.end();
+        return msg.channel.send('<a:606912254620729384:725056177796415548> The player has stopped and the queue has been cleared.');
+
+    } else if(cmd === 'skip') {
+
+      let vCh = msg.member.voiceChannel;
+
+      let queue = active.get(msg.guild.id);
+
+        if(!vCh) return msg.channel.send('**Sorry, But You Can\'t Because You Are Not In Voice Channel** <a:4a26aa20e8a54406b3b8a72b3d10132d:723652220255469660>');
+
+        if(!queue) return msg.channel.send('No music playing to skip it');
+
+        if(queue.repeating) return msg.channel.send('You can\'t skip it, because repeating mode is on, run ' + `\`${prefix}forceskip\``);
+
+        let req = vCh.members.size - 1;
+
+        if(req == 1) {
+            msg.channel.send('**<a:606912254620729384:725056177796415548> Skipped **' + args);
+            return queue.connection.dispatcher.end('Skipping ..')
+        }
+
+        if(!queue.votes) queue.votes = [];
+
+        if(queue.votes.includes(msg.member.id)) return msg.say(`You already voted for skip! ${queue.votes.length}/${req}`);
+
+        queue.votes.push(msg.member.id);
+
+        if(queue.votes.length >= req) {
+            msg.channel.send('**<a:606912254620729384:725056177796415548> Skipped **' + args);
+
+            delete queue.votes;
+
+            return queue.connection.dispatcher.end('Skipping ..')
+        }
+
+        msg.channel.send(`**You have successfully voted for skip! ${queue.votes.length}/${req}**`)
+
+    } else if(cmd === 'pause') {
+
+      let queue = active.get(msg.guild.id);
+
+        let vCh = msg.member.voiceChannel;
+
+        if(!vCh || vCh !== msg.guild.me.voiceChannel) return msg.channel.send(`You are not in my voice channel.`);
+
+        if(!queue) {
+            return msg.channel.send('No music playing to pause.')
+        }
+
+        if(!queue.playing) return msg.channel.send('<a:4a26aa20e8a54406b3b8a72b3d10132d:723652220255469660> There must be music playing to use that!')
+
+        let disp = queue.connection.dispatcher;
+
+        disp.pause('Pausing..')
+
+        queue.playing = false;
+
+        msg.channel.send('<a:606912254620729384:725056177796415548> Paused ' + args + '. **Type** `' + prefix + 'resume` to unpause!')
+
+    } else if (cmd === 'resume') {
+
+      let queue = active.get(msg.guild.id);
+
+        let vCh = msg.member.voiceChannel;
+
+        if(!vCh || vCh !== msg.guild.me.voiceChannel) return msg.channel.send(`You are not in my voice channel.`);
+
+        if(!queue) return msg.channel.send('<a:606912254620729384:725056177796415548> No music paused to resume.')
+
+        if(queue.playing) return msg.channel.send('<a:606912254620729384:725056177796415548> No music paused to resume.')
+
+        let disp = queue.connection.dispatcher;
+
+        disp.resume('Resuming..')
+// 2-0-0-2
+        queue.playing = true;
+
+        msg.channel.send('<a:606912254620729384:725056177796415548> Resumed.')
+
+    } else if(cmd === 'volume') {
+
+      let queue = active.get(msg.guild.id);
+
+      if(!queue || !queue.songs) return msg.channel.send('<a:606912254620729384:725056177796415548> There is no music playing to set volume.');
+
+      let vCh = msg.member.voiceChannel;
+
+      if(!vCh || vCh !== msg.guild.me.voiceChannel) return msg.channel.send('<a:606912254620729384:725056177796415548> You are not in my voice channel');
+
+      let disp = queue.connection.dispatcher;
+
+      if(isNaN(args[0])) return msg.channel.send('<a:606912254620729384:725056177796415548> Numbers only!');
+
+      if(parseInt(args[0]) > 100) return msg.channel.send('You can\'t set the volume more than 100.')
+//:speaker: Volume changed from 20 to 20 ! The volume has been changed from ${queue.volume} to ${args[0]}
+      msg.channel.send(':speaker: **Volume Has Been Changed From** (`' + queue.volume + '`) to (`' + args[0] + '`)');
+
+      queue.volume = args[0];
+
+      disp.setVolumeLogarithmic(queue.volume / 100);
+
+    } else if (cmd === 'queue') {
+
+      let queue = active.get(msg.guild.id);
+
+      if(!queue) return msg.channel.send('<a:4a26aa20e8a54406b3b8a72b3d10132d:723652220255469660> There must be music playing to use that!');
+
+      let embed = new Discord.RichEmbed()
+      .setAuthor(`${client.user.username}`, client.user.displayAvatarURL)
+      let text = '';
+
+      for (var i = 0; i < queue.songs.length; i++) {
+        let num;
+        if((i) > 8) {
+          let st = `${i+1}`
+          let n1 = converter.toWords(st[0])
+          let n2 = converter.toWords(st[1])
+          num = `:${n1}::${n2}:`
+        } else {
+        let n = converter.toWords(i+1)
+        num = `:${n}:`
+      }
+        text += `${num} ${queue.songs[i].title} [${queue.songs[i].duration}]\n`
+      }
+      embed.setDescription(`Songs Queue | ${msg.guild.name}\n\n ${text}`)
+      msg.channel.send(embed)
+
+    } else if(cmd === 'repeat') {
+
+      let vCh = msg.member.voiceChannel;
+
+      if(!vCh || vCh !== msg.guild.me.voiceChannel) return msg.channel.send('You are not in my voice channel');
+
+      let queue = active.get(msg.guild.id);
+
+      if(!queue || !queue.songs) return msg.channel.send('There is no music playing to repeat it.');
+
+      if(queue.repeating) {
+        queue.repeating = false;
+        return msg.channel.send(':arrows_counterclockwise: **Repeating Mode** (`False`)');
+      } else {
+        queue.repeating = true;
+        return msg.channel.send(':arrows_counterclockwise: **Repeating Mode** (`True`)');
+      }
+
+    } else if(cmd === 'forceskip') {
+
+      let vCh = msg.member.voiceChannel;
+
+      if(!vCh || vCh !== msg.guild.me.voiceChannel) return msg.channel.send('You are not in my voice channel');
+
+      let queue = active.get(msg.guild.id);
+
+      if(queue.repeating) {
+
+        queue.repeating = false;
+
+        msg.channel.send('ForceSkipped, Repeating mode is on.')
+
+        queue.connection.dispatcher.end('ForceSkipping..')
+// 2-0-0-2
+        queue.repeating = true;
+
+      } else {
+
+        queue.connection.dispatcher.end('ForceSkipping..')
+
+        msg.channel.send('ForceSkipped.')
+
+      }
+
+     } else if(cmd === 'skipto') {
+
+      let vCh = msg.member.voiceChannel;
+
+      if(!vCh || vCh !== msg.guild.me.voiceChannel) return msg.channel.send('You are not in my voice channel');
+
+      let queue = active.get(msg.guild.id);
+
+      if(!queue.songs || queue.songs < 2) return msg.channel.send('There is no music to skip to.');
+
+    if(queue.repeating) return msg.channel.send('You can\'t skip, because repeating mode is on, run ' + `\`${prefix}repeat\` to turn off.`);
+
+      if(!args[0] || isNaN(args[0])) return msg.channel.send('Please input song number to skip to it, run ' + prefix + `queue` + ' to see songs numbers.');
+
+      let sN = parseInt(args[0]) - 1;
+
+      if(!queue.songs[sN]) return msg.channel.send('There is no song with this number.');
+
+      let i = 1;
+
+      msg.channel.send(`Skipped to: **${queue.songs[sN].title}[${queue.songs[sN].duration}]**`)
+
+      while (i < sN) {
+        i++;
+        queue.songs.shift();
+      }
+
+      queue.connection.dispatcher.end('SkippingTo..')
+
+    } else if(cmd === 'Nowplaying') {
+
+      let q = active.get(msg.guild.id);
+
+      let now = npMsg(q)
+
+      msg.channel.send(now.mes, now.embed)
+      .then(me => {
+        setInterval(() => {
+          let noww = npMsg(q)
+          me.edit(noww.mes, noww.embed)
+        }, 5000)
+      })
+
+      function npMsg(queue) {
+
+        let m = !queue || !queue.songs[0] ? 'No music playing.' : "Now Playing..."
+
+      const eb = new Discord.RichEmbed();
+
+      eb.setColor(msg.guild.me.displayHexColor)
+
+      if(!queue || !queue.songs[0]){
+// 04
+        eb.setTitle("No music playing");
+            eb.setDescription("\u23F9 "+bar(-1)+" "+volumeIcon(!queue?100:queue.volume));
+      } else if(queue.songs) {
+
+        if(queue.requester) {
+
+          let u = msg.guild.members.get(queue.requester.id);
+
+          if(!u)
+            eb.setAuthor('Unkown (ID:' + queue.requester.id + ')')
+          else
+            eb.setAuthor(u.user.tag, u.user.displayAvatarURL)
+        }
+
+        if(queue.songs[0]) {
+        try {
+            eb.setTitle(queue.songs[0].title);
+            eb.setURL(queue.songs[0].url);
+        } catch (e) {
+          eb.setTitle(queue.songs[0].title);
+        }
+}
+        eb.setDescription(embedFormat(queue))
+
+      }
+
+      return {
+        mes: m,
+        embed: eb
+      }
+
+    }
+
+      function embedFormat(queue) {
+
+        if(!queue || !queue.songs) {
+          return "No music playing\n\u23F9 "+bar(-1)+" "+volumeIcon(100);
+        } else if(!queue.playing) {
+          return "No music playing\n\u23F9 "+bar(-1)+" "+volumeIcon(queue.volume);
+        } else { // 2-0-0-2
+
+
+          let progress = (queue.connection.dispatcher.time / queue.songs[0].msDur);
+          let prog = bar(progress);
+          let volIcon = volumeIcon(queue.volume);
+          let playIcon = (queue.connection.dispatcher.paused ? "\u23F8" : "\u25B6")
+          let dura = queue.songs[0].duration;
+
+          return playIcon + ' ' + prog + ' `[' + formatTime(queue.connection.dispatcher.time) + '/' + dura + ']`' + volIcon;
+
+
+        }
+
+      }
+
+      function formatTime(duration) {
+  var milliseconds = parseInt((duration % 1000) / 100),
+    seconds = parseInt((duration / 1000) % 60),
+    minutes = parseInt((duration / (1000 * 60)) % 60),
+    hours = parseInt((duration / (1000 * 60 * 60)) % 24);
+
+  hours = (hours < 10) ? "0" + hours : hours;
+  minutes = (minutes < 10) ? "0" + minutes : minutes;
+  seconds = (seconds < 10) ? "0" + seconds : seconds;
+
+  return (hours > 0 ? hours + ":" : "") + minutes + ":" + seconds;
+}
+// -0-4-
+      function bar(precent) {
+
+        var str = '';
+
+        for (var i = 0; i < 12; i++) {
+
+          let pre = precent
+          let res = pre * 12;
+
+          res = parseInt(res)
+
+          if(i == res){
+            str+="\uD83D\uDD18";
+          }
+          else {
+            str+="▬";
+          }
+        }
+
+        return str;
+
+      }
+
+      function volumeIcon(volume) {
+
+        if(volume == 0)
+           return "\uD83D\uDD07";
+       if(volume < 30)
+           return "\uD83D\uDD08";
+       if(volume < 70)
+           return "\uD83D\uDD09";
+       return "\uD83D\uDD0A";
+
+      }
+
+    }
 
 });
 
+
+
+
+
+
+
+
+client.on('message', message => {
+
+// 2-0-0-2
+
+    let argresult = message.content.split(` `).slice(1).join(' ');
+    if (message.content.startsWith(prefix + 'setStreaming')) {
+      if (!ownerID.includes(message.author.id)) return;
+      message.delete();
+      client.user.setGame(argresult, 'https://twitch.tv/Kahrbaa');
+
+    } else if(message.content.startsWith(prefix + 'setWatching')) {
+        client.user.setActivity(argresult,{type: 'WATCHING'});
+
+      } else if(message.content.startsWith(prefix + 'setListening')) {
+        client.user.setActivity(argresult,{type: 'LISTENING'});
+
+      } else if(message.content.startsWith(prefix + 'setPlaying')) {
+        client.user.setActivity(argresult,{type: 'PLAYING'});
+
+      } else if(message.content.startsWith(prefix + 'setName')) {
+        client.user.setUsername(argresult);
+
+      } else if(message.content.startsWith(prefix + 'setAvatar')) {
+        client.user.setAvatar(argresult);
+
+
+      } else if(message.content.startsWith(prefix + 'setStatus')) {
+        if(!argresult) return message.channel.send('`online`, `DND(Do not Distrub),` `idle`, `invisible(Offline)` :notes: أختر أحد الحالات');
+		client.user.setStatus(argresult);
+
+
+    }
+
+  });
+
 client.on("message", message => {
-      if (message.content === "^ping") {
+if(message.content.startsWith(prefix + "say")){
+let args = message.content.split(" ").slice(1).join(" ")
+if(!args) return message.channel.send("error")
+let embed = new Discord.RichEmbed()
+.setDescription(args)
+.setImage("https://discordapp.com/channels")
+message.channel.send(embed)
+}})
+
+client.on("message", message => {
+  if (message.author.bot) return;
+
+  if (!message.content.startsWith(prefix)) return;
+
+  let command = message.content.split(" ")[0];
+  command = command.slice(prefix.length);
+
+  let args = message.content.split(" ").slice(1);
+
+  
+  if (command === "say") {
+    if (!message.channel.guild)
+      return message.channel
+        .send("**This Command only for servers!!**")
+        .then(m => m.delete(5000));
+    if (!message.member.hasPermission("ADMINISTRATOR"))
+      return message.channel.send("**You Don't have premissions to do that!!**");
+    message.delete();
+    message.channel.sendMessage(args.join(" "));
+  }
+
+  if (command == "embed") {
+    if (!message.channel.guild)
+      return message.channel
+        .send("**This Command only for servers!!**")
+        .then(m => m.delete(5000));
+    if (!message.member.hasPermission("MANAGE_MESSAGES"))
+      return message.channel.send("**You Don't have premissions to do that!!**");
+    let say = new Discord.RichEmbed()
+      .setDescription(args.join("  "))
+      .setColor(0x23b2d6);
+    message.channel.sendEmbed(say);
+    message.delete();
+  }
+});
+
+client.on('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);/// </>~M̲e Ȼodes ᶜ
+    console.log(`in ${client.guilds.size} servers `)
+    console.log(`[Codes] ${client.users.size}`)/// </>~M̲e Ȼodes ᶜ
+    client.user.setStatus("idle")
+});
+
+client.on('ready',async () => {
+console.log("Starting..");
+let g = client.guilds.get("722982701594050640"); // id server
+let c = g.channels.get("725620772382441472");// id channel
+if(c.type === 'voice') {
+c.join();
+setInterval(() => {
+if(g.me.voiceChannel && g.me.voiceChannelID !== c.id || !g.me.voiceChannel) c.join();
+}, 1);
+} else {
+console.log('Failed To Join: \n The Channel Type isn "Listening."')
+}
+});
+
+
+client.on("message", message => {
+      if (message.content === "-ping") {
       const embed = new Discord.RichEmbed()
   .setColor("RANDOM")
-  .addField('**Ping:**' , `${Date.now() - message.createdTimestamp}` + ' ms')
+  .addField('**Ping  <a:a97757ad39dec48f799e8b440a8e1f:723741527247159297>**' , `${Date.now() - message.createdTimestamp}` + ' ms')
   message.channel.sendEmbed(embed);
     }
 });
 
 client.on('message', message => {
-    if (message.content.startsWith("^bot")) {
+    if (message.content.startsWith("-bot")) {
     message.channel.send({
         embed: new Discord.RichEmbed()
             .setAuthor(client.user.username,client.user.avatarURL)
             .setThumbnail(client.user.avatarURL)
             .setColor('RANDOM')
-            .setTitle('``INFO FlameBot`` ')
+            .setTitle('``TrueBot`` ')
             .addField('``My Ping``' , [`${Date.now() - message.createdTimestamp}` + 'MS'], true)
             .addField('``RAM Usage``', `[${(process.memoryUsage().rss / 1048576).toFixed()}MB]`, true)
             .addField('``servers``', [client.guilds.size], true)
@@ -83,535 +706,10 @@ client.on('message', message => {
             .addField('``Users``' ,`[ ${client.users.size} ]` , true)
             .addField('``My Name``' , `[ ${client.user.tag} ]` , true)
             .addField('``My ID``' , `[ ${client.user.id} ]` , true)
-			      .addField('``My Prefix``' , `[ ^ ]` , true)
-			      .addField('``My Language``' , `[ Java Script ]` , true)
+			      .addField('``My Prefix``' , `[ - ]` , true)
+			      .addField('``My Language``' , `[ python ]` , true)
 			      .setFooter('By | Wéèx .#3019')
     })
-}
-});
-
-client.on('message', message=>{
-  
-  let args = message.content.substring(prefix.length).split(" ");
-
-  switch(args[0]){
-  case 'kick':
-    
-    
-    var user = message.mentions.users.first();
-    
-    if(user){
-      const member = message.guild.member(user);
-      
-      if(member){
-        member.kick('**You are kick because**').then(() =>{
-          message.channel.send(`:rocket: **Kicked** ${user.tag}`);
-        }).catch(err =>{
-          message.channel.send("**i was unable to kick this member Because** `he is a moderator`");
-          console.log(err);
-        });
-      } else{
-        message.channel.send("**i cant find this user!**")
-      }
-    } else{
-      message.channel.send('**You need to mention a member**')
-    }
-
-}
-})
-
-  client.on("message",message => {
-if(message.author.bot) return;
-if(!message.content.startsWith(prefix)) return;
-  if(message.content.startsWith(prefix + "avatar")){
-const mention = message.mentions.users.first()
-
-if(!mention) return console.log("") 
-let embed = new Discord.RichEmbed()
-.setColor("BLACK")
-.setAuthor(`${mention.username}#${mention.discriminator}`,`${mention.avatarURL}`) 
-.setTitle("Avatar Link")
-.setURL(`${mention.avatarURL}`)
-.setImage(`${mention.avatarURL}`)
-.setFooter(`Requested By ${message.author.tag}`,`${message.author.avatarURL}`)    
-    message.channel.send(embed)
-}
-})
-
-client.on("message", message => {
-  if(message.author.bot) return;
-  if(!message.content.startsWith(prefix)) return;
-  if(message.content.startsWith(prefix + "avatar server")) {
-    let doma = new Discord.RichEmbed()
-    .setColor("BLACK")
-    .setAuthor(message.guild.name, message.guild.iconURL)
-    .setTitle("Avatar Link")
-    .setURL(message.guild.iconURL)
-    .setImage(message.guild.iconURL)
-    .setFooter(`Requested By ${message.author.tag}`, message.author.avatarURL)
-    message.channel.send(doma)
-  } else if(message.content.startsWith(prefix + "avatar")) {
-    let args = message.content.split(" ")[1]
-var avt = args || message.author.id;    
-    client.fetchUser(avt).then(user => {
-     avt = user;
-  let embed = new Discord.RichEmbed() 
-  .setColor("BLACK")
-  .setAuthor(`${avt.tag}`, avt.avatarURL)
-  .setTitle("Avatar Link")
-  .setURL(avt.avatarURL)
-  .setImage(avt.avatarURL)
-  .setFooter(`Requested By ${message.author.tag}`, message.author.avatarURL)
-  message.channel.send(embed) 
-    })
-  }
-})
-  
-
- 
-client.on('message', message => {  
-    if (message.author.bot) return; 
-    if (message.content.startsWith(prefix + 'clear')) { 
-    if(!message.channel.guild) return message.reply(`** This Command For Servers Only**`); 
-     if(!message.member.hasPermission('MANAGE_GUILD')) return message.channel.send(`** You don't have Premissions!**`);
-     if(!message.guild.member(client.user).hasPermission('MANAGE_GUILD')) return message.channel.send(`**I don't have Permission!**`);
-    let args = message.content.split(" ").slice(1)
-    let messagecount = parseInt(args);
-    if (args > 100) return message.reply(`** The number can't be more than **100** .**`).then(messages => messages.delete(5000))
-    if(!messagecount) args = '100';
-    message.channel.fetchMessages({limit: messagecount}).then(messages => message.channel.bulkDelete(messages)).then(msgs => {
-    message.channel.send(`** Done , Deleted ${msgs.size} messages.**`).then(messages => messages.delete(5000));
-    })
-  }
-});
-
-client.on('message', message=>{
-  
-  let args = message.content.substring(prefix.length).split(" ");
-
-  switch(args[0]){
-  case 'ban':
-    
-    
-    const user = message.mentions.users.first();
-    
-    if(user){
-      const member = message.guild.member(user);
-      
-      if(member){
-        member.ban({ression: 'You Are Bad!!'}).then(() =>{
-          message.channel.send(':rocket: **Banned**' `${user.tag}`);
-        })
-      } else{
-        message.channel.send("That user isn't in this server").then(message => message.delete(5000));;
-      }
-    } else{
-      message.channel.send('**You need to mention a member**').then(message => message.delete(5000));;
-    }
-
-}
-})
-
-
-client.on('message', msg => {
-  if (msg.content === '^help') {      
-    msg.react("✅")
-  }
-});
-
-client.on("message", message => {
-  if(message.author.bot) return;
-  if(!message.content.startsWith(prefix)) return;
-  if(message.content.startsWith(prefix + "help")) {
-    let embed = new Discord.RichEmbed()
-    .setAuthor(client.user.tag,client.user.avatarURL)
-    .setColor("BLACK")
-    .setDescription(` **If you want more info about any command**
-Use: **^help [command name]** <a:4a26aa20e8a54406b3b8a72b3d10132d:723652220255469660>
-
-**• Commands** ~~60~~
-
-> **General** <a:e0dacdd4a8b946fa9652b34cc70a12ad:723650602286055525>
-<a:677203465646243844:723715553461534798> ** ^submit ~ ل تقديم للادارةه**
-<a:677203465646243844:723715553461534798> ** ^quran ~ ل عرض لك قرائن كريم **
-<a:677203465646243844:723715553461534798> ** ^time ~ لعرض لك توقيت مصر والامارت **
-<a:677203465646243844:723715553461534798> ** ^avatar server ~ لعرض لك صورة السيرفر **
-<a:677203465646243844:723715553461534798> ** ^avatar ~ ل عرض صورتك **
-<a:677203465646243844:723715553461534798> ** ^bans ~ لمعرفت عدد الاشخاص المتبندين **
-<a:677203465646243844:723715553461534798> ** ^bot ~ يعرض لك معلومات عن البوت **
-<a:677203465646243844:723715553461534798> ** ^top inv ~ يعرض لك كثر شخص بالدعوات **
- > **Moderatoin** <a:e0dacdd4a8b946fa9652b34cc70a12ad:723650602286055525>
-<a:677203465646243844:723715553461534798> ** ^setVoice ~ ل تفعيل خاصية الفويس اون لاين**
-<a:677203465646243844:723715553461534798> ** ^uchat ~ ل فك تقفيل الشات**
-<a:677203465646243844:723715553461534798> ** ^cchat ~ ل تقفيل الشات**
-<a:677203465646243844:723715553461534798> ** ^umute ~ ل فك الميوت الكتابي**
-<a:677203465646243844:723715553461534798> ** ^mute ~ ل عمل ميوت كتابي لحد**
-<a:677203465646243844:723715553461534798> ** ^ban ~ ل تبنيد احد من السيرفر**
-<a:677203465646243844:723715553461534798> ** ^kick ~ ل طرد احد من السيرفر**
-<a:677203465646243844:723715553461534798> ** ^role ~ ل اظهار جميع اوامر الرولات **
-<a:677203465646243844:723715553461534798> ** ^clear ~ ل مسح الرسائل بالعدد  **
-<a:677203465646243844:723715553461534798> ** ^warn ~ ل اعطاء تحذير لاحد **
-<a:677203465646243844:723715553461534798> ** ^send ~ ل عمل تصويت ب روم محدد** `)
-    message.author.send(embed)
-  }
-})
-
-client.on("message", message => {
-  if(message.author.bot) return;
-  if(!message.content.startsWith(prefix)) return;
-  if(message.content.startsWith(prefix + "help")) {
-    let embed = new Discord.RichEmbed()
-    .setColor("BLACK")
-    .setDescription(`> **Personal** <a:e0dacdd4a8b946fa9652b34cc70a12ad:723650602286055525> 
-<a:677203465646243844:723715553461534798> ** ^profile ~ عرض بطاقة التعريف الشخصية العامة  **
-<a:677203465646243844:723715553461534798> ** ^credit ~  ل معرفة كم معك من كردت **
-<a:677203465646243844:723715553461534798> ** ^daily ~  ل لحصول على كردت **
-<a:677203465646243844:723715553461534798> ** ^user ~  ل معرفة كل شئ عن حسابك **
-> **Server** <a:e0dacdd4a8b946fa9652b34cc70a12ad:723650602286055525>
-<a:677203465646243844:723715553461534798> ** ^roles ~ ل انشاء رولات جاهزة **
-<a:677203465646243844:723715553461534798> ** ^ct ~ ل انشاء روم كتابي **
-<a:677203465646243844:723715553461534798> ** ^hchannel ~ ل اخفاء جميع رومات السيرفر **
-<a:677203465646243844:723715553461534798> ** ^schannel ~ ل اظهار جميع رومات السيرفر **
-<a:677203465646243844:723715553461534798> ** ^dac ~ ل حذف جميع رومات السيرفر  **
-<a:677203465646243844:723715553461534798> ** ^dar ~ ل حذف جميع رتب السيرفر  **
-> ~~**Other**~~ <a:e0dacdd4a8b946fa9652b34cc70a12ad:723650602286055525>
-<a:70a4fc56c74e4fd5846bae3e1d68eb7c:723741061075435541> ** ^inv ~ لارسال رابط دعوه البوت **
-<a:70a4fc56c74e4fd5846bae3e1d68eb7c:723741061075435541> ** ^suppport ~ لارسال رابط سيرفر خادم بوت **
-<a:70a4fc56c74e4fd5846bae3e1d68eb7c:723741061075435541> ** ^call ~ ارسال رسالة او اقتراح لصحاب بوت **
-
-> ** Soon ** <a:97757ad39dec48f799e8b440a8e1fd67:723741527247159297> `)
-    message.author.send(embed)
-  }
-})
-
-client.on('message', msg => {
-  if (msg.content === '^help') {      
-    msg.channel.send("If DM **Locked** I didn it send the commands <:654107963551645709:723737586941558794>")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'السلام عليكم') {
-    msg.reply('وعليكم السلام ورحمة الله تعالى وبركاته <a:97757ad39dec48f799e8b440a8e1fd67:723741527247159297>');
-  }
-});
-
-
-client.on('message', msg => {
-  if (msg.content === 'باك') {
-    msg.reply('Welcome Back  <a:97757ad39dec48f799e8b440a8e1fd67:723741527247159297> ');
-  }
-});
-
-
-client.on('message', msg => {
-  if (msg.content === 'هلا') {
-    msg.reply('**هلا بيك يا عمري منور** <a:97757ad39dec48f799e8b440a8e1fd67:723741527247159297>');
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'باي') {
-    msg.reply(' **باي يا حب** <a:97757ad39dec48f799e8b440a8e1fd67:723741527247159297>');
-  }
-});
-
-client.on('message', message => {
- 
-    if (message.content === "^cchat") {
-                        if(!message.channel.guild) return message.reply(' هذا الامر فقط للسيرفرات !!');
- 
-if(!message.member.hasPermission('MANAGE_MESSAGES')) return message.reply(' ليس لديك صلاحيات');
-           message.channel.overwritePermissions(message.guild.id, {
-         SEND_MESSAGES: false
- 
-           }).then(() => {
-               message.reply("تم تقفيل الشات ✅ ")
-           });
-             }
-if (message.content === "^uchat") {
-    if(!message.channel.guild) return message.reply(' هذا الامر فقط للسيرفرات !!');
- 
-if(!message.member.hasPermission('MANAGE_MESSAGES')) return message.reply('ليس لديك صلاحيات');
-           message.channel.overwritePermissions(message.guild.id, {
-         SEND_MESSAGES: true
- 
-           }).then(() => {
-               message.reply("تم فتح الشات ✅")
-           });
-             }
- 
- 
- 
-});
-
-client.on('message', msg => {
-    if (msg.content.startsWith(`^warn`)) {
-       let args = msg.content.split(" ").slice(1);
-      if (!msg.mentions.members.first()) return msg.reply('منشن الشخص المحدد')
-      if (!args[1]) return msg.reply('``اكتب السبب``')
-      //غير اسم الروم او سوي روم بذا الاسم
-      if (msg.guild.channels.find('name', 'warn')) {
-        //اذا غيرت فوق غير هنا كمان
-        msg.guild.channels.find('name', 'warns').send(`
-      تم اعطائك تنبيه : ${msg.mentions.members.first()}
-      لأنك قمت بما يلي
-      ${args.join(" ").split(msg.mentions.members.first()).slice(' ')}
-      `)
-      }
-    }
-})
-
-client.on('message', msg => {
-  if (msg.content === 'السعودية') {      
-    msg.react("SA")
-    msg.channel.send("SA")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'مصر') {      
-    msg.react("🇪🇬")
-    msg.channel.send("🇪🇬")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'المغرب') {      
-    msg.react("🇲🇦")
-    msg.channel.send("🇲🇦")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'العراق') {      
-    msg.react("🇮🇶")
-    msg.channel.send("🇮🇶")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'الجزائر') {      
-    msg.react("🇩🇿")
-    msg.channel.send("🇩🇿")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'الامارات') {      
-    msg.react("🇦🇪")
-    msg.channel.send("🇦🇪")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'تونس') {      
-    msg.react("🇹🇳")
-    msg.channel.send("🇹🇳")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'سوريا') {      
-    msg.react("🇸🇾")
-    msg.channel.send("🇸🇾")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'ليبيا') {      
-    msg.react("🇱🇾")
-    msg.channel.send("🇱🇾")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'قطر') {      
-    msg.react("🇶🇦")
-    msg.channel.send("🇶🇦")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'الصومال') {      
-    msg.react("🇸🇴")
-    msg.channel.send("🇸🇴")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'عمان') {      
-    msg.react("🇴🇲")
-    msg.channel.send("🇴🇲")
-  }
-});
-
-client.on('message', msg => {
-  if (msg.content === 'موريتانيا') {      
-    msg.react("🇲🇷")
-    msg.channel.send("🇲🇷")
-  }
-});
-
-client.on("message", (message) => {
-    /// ALPHA CODES
-   if (message.content.startsWith("^ticket")) {     /// ALPHA CODES
-        const reason = message.content.split(" ").slice(1).join(" ");     /// ALPHA CODES
-        if (!message.guild.roles.exists("name", "Support Team")) return message.channel.send(`This server doesn't have a \`Support Team\` role made, so the ticket won't be opened.\nIf you are an administrator, make one with that name exactly and give it to users that should be able to see tickets.`);
-        if (message.guild.channels.exists("name", "ticket-{message.author.id}" + message.author.id)) return message.channel.send(`You already have a ticket open.`);    /// ALPHA CODES
-        message.guild.createChannel(`ticket-${message.author.username}`, "text").then(c => {
-            let role = message.guild.roles.find("name", "Support Team");
-            let role2 = message.guild.roles.find("name", "@everyone");
-            c.overwritePermissions(role, {
-                SEND_MESSAGES: true,
-                READ_MESSAGES: true
-            });    /// ALPHA CODES
-            c.overwritePermissions(role2, {
-                SEND_MESSAGES: false,
-                READ_MESSAGES: false
-            });
-            c.overwritePermissions(message.author, {
-                SEND_MESSAGES: true,
-                READ_MESSAGES: true
-            });
-            message.channel.send(`:white_check_mark: **تم إنشاء تذكرتك ، #${c.name}.**`);
-            const embed = new Discord.RichEmbed()
-                .setColor(0xCF40FA)
-                .addField(`مرحباّ ${message.author.username}!`, `يرجى محاولة شرح سبب فتح هذه التذكرة بأكبر قدر ممكن من التفاصيل. سيكون فريق الدعم لدينا قريبا للمساعدة.`)
-                .setTimestamp();
-            c.send({
-                embed: embed
-            });
-        }).catch(console.error);
-    }
- 
- 
-  if (message.content.startsWith("^close")) {
-        if (!message.channel.name.startsWith(`ticket-`)) return message.channel.send(`You can't use the close command outside of a ticket channel.`);
- 
-        message.channel.send(`هل أنت متأكد؟ بعد التأكيد ، لا يمكنك عكس هذا الإجراء!\n للتأكيد ، اكتب\`^confirm\`. سيؤدي ذلك إلى مهلة زمنية في غضون 10 ثوانٍ وإلغائها`)
-            .then((m) => {
-                message.channel.awaitMessages(response => response.content === '*confirm', {
-                        max: 1,
-                        time: 10000,
-                        errors: ['time'],
-                    })    /// ALPHA CODES
-                    .then((collected) => {
-                        message.channel.delete();
-                    })    /// ALPHA CODES
-                    .catch(() => {
-                        m.edit('Ticket close timed out, the ticket was not closed.').then(m2 => {
-                            m2.delete();
-                        }, 3000);
-                    });
-            });
-    }
- 
-});
-
-client.on('message', function(msg) {
-    const prefix = '^'
-    if(msg.content.startsWith (prefix  + 'server')) {
-      let embed = new Discord.RichEmbed()
-      .setColor('RANDOM')
-      .setThumbnail(msg.guild.iconURL)
-      .setTitle(`Showing Details Of  **${msg.guild.name}*`)
-      .addField('🌐** نوع السيرفر**',`[** __${msg.guild.region}__ **]`,true)
-      .addField('🏅** __الرتب__**',`[** __${msg.guild.roles.size}__ **]`,true)
-      .addField('🔴**__ عدد الاعضاء__**',`[** __${msg.guild.memberCount}__ **]`,true)
-      .addField('🔵**__ عدد الاعضاء الاونلاين__**',`[** __${msg.guild.members.filter(m=>m.presence.status == 'online').size}__ **]`,true)
-      .addField('📝**__ الرومات الكتابية__**',`[** __${msg.guild.channels.filter(m => m.type === 'text').size}__** ]`,true)
-      .addField('🎤**__ رومات الصوت__**',`[** __${msg.guild.channels.filter(m => m.type === 'voice').size}__ **]`,true)
-      .addField('👑**__ الأونـر__**',`**${msg.guild.owner}**`,true)
-      .addField('🆔**__ ايدي السيرفر__**',`**${msg.guild.id}**`,true)
-      .addField('📅**__ تم عمل السيرفر في__**',msg.guild.createdAt.toLocaleString())
-      msg.channel.send({embed:embed});
-    }
-  });
-
-client.on('message', message => {
-         if (message.content === prefix + "time") {
-         if (!message.channel.guild) return message.reply('** This command only for servers **');  
-         var currentTime = new Date(),
-            hours = currentTime.getHours() + 4 ,
-            hours2 = currentTime.getHours() + 3 ,
-            hours3 = currentTime.getHours() + 2 ,
-            hours4 = currentTime.getHours() + 3 ,
-            minutes = currentTime.getMinutes(),
-            seconds = currentTime.getSeconds(),
-            Year = currentTime.getFullYear(),
-            Month = currentTime.getMonth() + 1,
-            Day = currentTime.getDate();
-             var h = hours
-  if(hours > 12) {
-               hours -= 12;
-            } else if(hours == 0) {
-                hours = "12";
-            }  
-             if(hours2 > 12) {
-               hours2 -= 12;
-            } else if(hours2 == 0) {
-                hours2 = "12";
-            
-            }  
-                         if(hours3 > 12) {
-               hours3 -= 12;
-            } else if(hours3 == 0) {
-                hours3 = "12";
-            } 
-            if (minutes < 10) {
-                minutes = '0' + minutes;
-            }
-
-            var suffix = 'صباحاَ';
-            if (hours >= 12) {
-                suffix = 'مساء';
-                hours = hours - 12;
-            }
-            if (hours == 0) {
-                hours = 12;
-            }
- 
-
-                var Date15= new Discord.RichEmbed()
-                .setThumbnail("https://i.imgur.com/ib3n4Hq.png") 
-                .setTitle( "『التاريخ  والوقت』")
-                .setColor('RANDOM')
-                .setFooter(message.author.username, message.author.avatarURL)
-                .addField('الامارات',
-                "『"+ hours + ":" + minutes +":"+ seconds + "』")
-                 .addField('مكه المكرمه',
-                "『"+ hours2 + ":" + minutes +":"+ seconds  + "』") 
-                .addField('مصر',
-                "『"+ hours3 + ":" + minutes +":"+ seconds  + "』") 
-                
-                .addField('Date',
-                "『"+ Day + "-" + Month + "-" + Year +  "』")
-
-                 message.channel.sendEmbed(Date15);
-        }
-    });
-
-
-
-
-client.on("message", (message) => {
-if (message.content.startsWith("^ct")) {
-            if (!message.member.hasPermission('MANAGE_CHANNELS')) return message.reply("You Don't Have `MANAGE_CHANNELS` Premissions ");
-        let args = message.content.split(" ").slice(1);
-    message.guild.createChannel(args.join(' '), 'text');
-message.channel.sendMessage('تـم إنـشاء روم كـتابـي')
-
-}
-});
-
-client.on("message", (message) => {
-if (message.content.startsWith("^cv")) {
-            if (!message.member.hasPermission('MANAGE_CHANNELS')) return message.reply("You Don't Have `MANAGE_CHANNELS` Premissions ");
-        let args = message.content.split(" ").slice(1);
-    message.guild.createChannel(args.join(' '), 'voice');
-    message.channel.sendMessage('تـم إنـشاء روم صـوتي')
-    
 }
 });
 
